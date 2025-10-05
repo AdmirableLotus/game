@@ -107,15 +107,18 @@
 ## backend:
   - task: "Game API endpoints"
     implemented: true
-    working: "needs_testing"
+    working: true
     file: "/app/backend/server.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
         - working: "implemented"
         - agent: "main"
         - comment: "Created FastAPI endpoints for game creation, joining, moves, and status. Includes MongoDB models for game state, players, and moves. Ready for testing."
+        - working: true
+        - agent: "testing"
+        - comment: "COMPREHENSIVE BACKEND TESTING COMPLETED - All 10 API endpoints tested successfully: ✅ Health check (GET /api/), ✅ Create local game (POST /api/games), ✅ Create online game with room codes, ✅ Get game by ID (GET /api/games/{id}), ✅ Get game by room code (GET /api/games/room/{code}), ✅ Game status endpoint (GET /api/games/{id}/status), ✅ Make moves (POST /api/games/{id}/move), ✅ Join online games (POST /api/games/{id}/join), ✅ Invalid move validation, ✅ Non-existent game error handling. MongoDB connection verified with 2 games persisted. Game flow tested: create → move → status → join. All core functionality working perfectly."
 
 ## frontend:
   - task: "Home screen with elemental theme"
