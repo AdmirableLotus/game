@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, Dimensions, Animated } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 
@@ -57,6 +57,9 @@ export default function Game() {
   const [grid, setGrid] = useState<Cell[][]>([]);
   const [horizontalLines, setHorizontalLines] = useState<Line[][]>([]);
   const [verticalLines, setVerticalLines] = useState<Line[][]>([]);
+  const [gameWinner, setGameWinner] = useState<number | null>(null);
+  const [turnAnimation] = useState(new Animated.Value(0));
+  const [captureAnimation] = useState(new Animated.Value(0));
   
   const playerColors = ['#ff5722', '#2196f3', '#4caf50', '#9c27b0'];
   const playerElements: Element[] = ['fire', 'water', 'earth', 'wind'];
@@ -68,7 +71,6 @@ export default function Game() {
   }, []);
 
   const initializeGame = () => {
-    // Initialize players
     const newPlayers: Player[] = [];
     for (let i = 0; i < parseInt(playerCount as string); i++) {
       newPlayers.push({
@@ -82,7 +84,6 @@ export default function Game() {
     }
     setPlayers(newPlayers);
 
-    // Initialize grid
     const newGrid: Cell[][] = [];
     for (let y = 0; y < gridSize; y++) {
       const row: Cell[] = [];
@@ -98,7 +99,6 @@ export default function Game() {
     }
     setGrid(newGrid);
 
-    // Initialize horizontal lines
     const newHorizontalLines: Line[][] = [];
     for (let y = 0; y <= gridSize; y++) {
       const row: Line[] = [];
@@ -114,7 +114,6 @@ export default function Game() {
     }
     setHorizontalLines(newHorizontalLines);
 
-    // Initialize vertical lines
     const newVerticalLines: Line[][] = [];
     for (let y = 0; y < gridSize; y++) {
       const row: Line[] = [];
@@ -131,10 +130,98 @@ export default function Game() {
     setVerticalLines(newVerticalLines);
   };
 
+  const findCellById = (cellId: string): Cell | null => {
+    for (const row of grid) {
+      for (const cell of row) {
+        if (cell.id === cellId) return cell;
+      }
+    }
+    return null;
+  };
+
+  const isAdjacent = (cell1: Cell, cell2: Cell): boolean => {
+    const dx = Math.abs(cell1.x - cell2.x);
+    const dy = Math.abs(cell1.y - cell2.y);
+    return (dx === 1 && dy === 0) || (dx === 0 && dy === 1);
+  };
+
+  const executeArmyMove = (fromCell: Cell, toCell: Cell) => {
+    const newGrid = [...grid];
+    const fromGridCell = newGrid[fromCell.y][fromCell.x];
+    const toGridCell = newGrid[toCell.y][toCell.x];
+    
+    const attackingArmies = fromGridCell.armyCount! - 1;
+    
+    if (toCell.owner === undefined || toCell.owner === currentPlayer) {
+      toGridCell.owner = currentPlayer;
+      toGridCell.state = 'claimed';
+      toGridCell.element = players[currentPlayer].element;
+      toGridCell.armyCount = (toGridCell.armyCount || 0) + attackingArmies;
+      fromGridCell.armyCount = 1;
+    } else {
+      const defendingArmies = toGridCell.armyCount || 1;
+      if (attackingArmies > defendingArmies) {
+        const newPlayers = [...players];
+        newPlayers[toCell.owner].territories--;
+        newPlayers[currentPlayer].territories++;
+        
+        toGridCell.owner = currentPlayer;
+        toGridCell.element = players[currentPlayer].element;
+        toGridCell.armyCount = attackingArmies - defendingArmies;
+        fromGridCell.armyCount = 1;
+        
+        setPlayers(newPlayers);
+        animateCapture();
+      } else {
+        toGridCell.armyCount = defendingArmies - attackingArmies;
+        fromGridCell.armyCount = 1;
+      }
+    }
+    
+    setGrid(newGrid);
+    checkWinCondition();
+    nextTurn();
+  };
+
+  const animateCapture = () => {
+    Animated.sequence([
+      Animated.timing(captureAnimation, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+      Animated.timing(captureAnimation, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  };
+
+  const checkWinCondition = () => {
+    const totalTerritories = gridSize * gridSize;
+    const winThreshold = Math.floor(totalTerritories * 0.6);
+    
+    for (const player of players) {
+      if (player.territories >= winThreshold) {
+        setGameWinner(player.id);
+        setTimeout(() => {
+          router.push({
+            pathname: '/victory',
+            params: {
+              winner: player.id,
+              element: player.element
+            }
+          });
+        }, 1000);
+        return;
+      }
+    }
+  };
+
   const handleLinePress = (lineId: string, isHorizontal: boolean, x: number, y: number) => {
     if (gamePhase !== 'drawing') return;
 
-    // Draw line
     if (isHorizontal) {
       const newLines = [...horizontalLines];
       if (newLines[y] && newLines[y][x] && newLines[y][x].state === 'empty') {
@@ -145,7 +232,6 @@ export default function Game() {
         };
         setHorizontalLines(newLines);
         
-        // Check for completed squares
         checkCompletedSquares(x, y, true);
         nextTurn();
       }
@@ -159,7 +245,6 @@ export default function Game() {
         };
         setVerticalLines(newLines);
         
-        // Check for completed squares
         checkCompletedSquares(x, y, false);
         nextTurn();
       }
@@ -170,7 +255,6 @@ export default function Game() {
     const newGrid = [...grid];
     let squaresClaimed = 0;
 
-    // Check squares that could be completed by this line
     const squaresToCheck = isHorizontal
       ? [{ sx: x, sy: y - 1 }, { sx: x, sy: y }]
       : [{ sx: x - 1, sy: y }, { sx: x, sy: y }];
@@ -194,15 +278,16 @@ export default function Game() {
 
     if (squaresClaimed > 0) {
       setGrid(newGrid);
-      // Update player territories
       const newPlayers = [...players];
       newPlayers[currentPlayer].territories += squaresClaimed;
       setPlayers(newPlayers);
+      
+      animateCapture();
+      checkWinCondition();
     }
   };
 
   const isSquareComplete = (x: number, y: number): boolean => {
-    // Check all four sides of the square
     const topLine = horizontalLines[y]?.[x];
     const bottomLine = horizontalLines[y + 1]?.[x];
     const leftLine = verticalLines[y]?.[x];
@@ -217,11 +302,53 @@ export default function Game() {
   };
 
   const nextTurn = () => {
+    if (gameWinner) return;
+    
+    Animated.sequence([
+      Animated.timing(turnAnimation, {
+        toValue: 1,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+      Animated.timing(turnAnimation, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+    ]).start();
+    
     setCurrentPlayer((prev) => (prev + 1) % players.length);
+    
+    const newPlayers = [...players];
+    const nextPlayer = (currentPlayer + 1) % players.length;
+    newPlayers[nextPlayer].armies += Math.max(1, Math.floor(newPlayers[nextPlayer].territories / 3));
+    
+    const newGrid = [...grid];
+    for (let y = 0; y < gridSize; y++) {
+      for (let x = 0; x < gridSize; x++) {
+        if (newGrid[y][x].owner === nextPlayer && newGrid[y][x].state === 'claimed') {
+          newGrid[y][x].armyCount = (newGrid[y][x].armyCount || 0) + 1;
+        }
+      }
+    }
+    
+    setGrid(newGrid);
+    setPlayers(newPlayers);
   };
 
   const handleCellPress = (cell: Cell) => {
-    if (gamePhase !== 'army' || cell.owner !== currentPlayer) return;
+    if (gamePhase !== 'army') return;
+    
+    if (selectedCell && selectedCell !== cell.id) {
+      const fromCell = findCellById(selectedCell);
+      if (fromCell && isAdjacent(fromCell, cell) && fromCell.armyCount! > 1) {
+        executeArmyMove(fromCell, cell);
+        setSelectedCell(null);
+        return;
+      }
+    }
+    
+    if (cell.owner !== currentPlayer) return;
     
     if (selectedCell === cell.id) {
       setSelectedCell(null);
@@ -300,6 +427,9 @@ export default function Game() {
 
   const renderCell = (cell: Cell) => {
     const isSelected = selectedCell === cell.id;
+    const canAttack = selectedCell && selectedCell !== cell.id && gamePhase === 'army';
+    const fromCell = selectedCell ? findCellById(selectedCell) : null;
+    const isTargetable = canAttack && fromCell && isAdjacent(fromCell, cell);
     
     return (
       <TouchableOpacity
@@ -314,12 +444,12 @@ export default function Game() {
             backgroundColor: cell.state === 'claimed' && cell.owner !== undefined
               ? players[cell.owner]?.color + '40'
               : 'transparent',
-            borderColor: isSelected ? '#64ffda' : 'transparent',
-            borderWidth: isSelected ? 2 : 0,
+            borderColor: isSelected ? '#64ffda' : isTargetable ? '#ff6b6b' : 'transparent',
+            borderWidth: (isSelected || isTargetable) ? 2 : 0,
           },
         ]}
         onPress={() => handleCellPress(cell)}
-        disabled={cell.state !== 'claimed' || gamePhase !== 'army'}
+        disabled={gamePhase !== 'army'}
       >
         {cell.armyCount && cell.armyCount > 0 && (
           <Text style={[
@@ -327,6 +457,13 @@ export default function Game() {
             { color: cell.owner !== undefined ? players[cell.owner]?.color : '#fff' }
           ]}>
             {cell.armyCount}
+          </Text>
+        )}
+        {cell.element && (
+          <Text style={styles.elementIcon}>
+            {cell.element === 'fire' ? '🔥' : 
+             cell.element === 'water' ? '💧' : 
+             cell.element === 'earth' ? '🌱' : '💨'}
           </Text>
         )}
       </TouchableOpacity>
@@ -339,13 +476,22 @@ export default function Game() {
         colors={['#1a1a2e', '#16213e']}
         style={styles.background}
       >
-        {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={handleBack} style={styles.backButton}>
             <Text style={styles.backText}>← Back</Text>
           </TouchableOpacity>
           
-          <View style={styles.gameInfo}>
+          <Animated.View style={[
+            styles.gameInfo,
+            {
+              transform: [{
+                scale: turnAnimation.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [1, 1.1],
+                })
+              }]
+            }
+          ]}>
             <Text style={styles.currentPlayerText}>
               {players[currentPlayer]?.element.toUpperCase()} TURN
             </Text>
@@ -353,10 +499,9 @@ export default function Game() {
               styles.currentPlayerIndicator,
               { backgroundColor: players[currentPlayer]?.color }
             ]} />
-          </View>
+          </Animated.View>
         </View>
 
-        {/* Game Controls */}
         <View style={styles.controls}>
           <TouchableOpacity
             style={[
@@ -364,12 +509,13 @@ export default function Game() {
               gamePhase === 'drawing' && styles.activePhase
             ]}
             onPress={toggleGamePhase}
+            disabled={gameWinner !== null}
           >
             <Text style={[
               styles.phaseText,
               gamePhase === 'drawing' && styles.activePhaseText
             ]}>
-              Draw Lines
+              🔗 Claim Territory
             </Text>
           </TouchableOpacity>
           
@@ -379,58 +525,80 @@ export default function Game() {
               gamePhase === 'army' && styles.activePhase
             ]}
             onPress={toggleGamePhase}
+            disabled={gameWinner !== null}
           >
             <Text style={[
               styles.phaseText,
               gamePhase === 'army' && styles.activePhaseText
             ]}>
-              Move Armies
+              ⚔️ Command Armies
             </Text>
           </TouchableOpacity>
         </View>
 
-        {/* Game Board */}
         <View style={styles.gameBoard}>
-          <View style={[
+          <Animated.View style={[
             styles.gridContainer,
             {
               width: (gridSize + 1) * cellSize,
               height: (gridSize + 1) * cellSize,
+              transform: [{
+                scale: captureAnimation.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [1, 1.02],
+                })
+              }]
             }
           ]}>
-            {/* Dots */}
             {Array.from({ length: gridSize + 1 }).map((_, y) =>
               Array.from({ length: gridSize + 1 }).map((_, x) => renderDot(x, y))
             )}
 
-            {/* Horizontal Lines */}
             {horizontalLines.map((row, y) =>
               row.map((line, x) => renderHorizontalLine(line, x, y))
             )}
 
-            {/* Vertical Lines */}
             {verticalLines.map((row, y) =>
               row.map((line, x) => renderVerticalLine(line, x, y))
             )}
 
-            {/* Cells */}
             {grid.map((row) =>
               row.map((cell) => renderCell(cell))
             )}
-          </View>
+          </Animated.View>
         </View>
 
-        {/* Player Status */}
         <View style={styles.playerStatus}>
-          {players.map((player) => (
-            <View key={player.id} style={styles.playerCard}>
-              <View style={[styles.playerColor, { backgroundColor: player.color }]} />
-              <Text style={styles.playerName}>{player.element}</Text>
-              <Text style={styles.playerStats}>
-                Territories: {player.territories}
-              </Text>
-            </View>
-          ))}
+          {players.map((player) => {
+            const isWinner = gameWinner === player.id;
+            const dominancePercent = Math.floor((player.territories / (gridSize * gridSize)) * 100);
+            
+            return (
+              <View key={player.id} style={[
+                styles.playerCard,
+                isWinner && styles.winnerCard,
+                player.id === currentPlayer && styles.currentPlayerCard
+              ]}>
+                <View style={[
+                  styles.playerColor, 
+                  { backgroundColor: player.color },
+                  isWinner && styles.winnerGlow
+                ]} />
+                <Text style={[
+                  styles.playerName,
+                  isWinner && styles.winnerText
+                ]}>
+                  {player.element} {isWinner ? '👑' : ''}
+                </Text>
+                <Text style={styles.playerStats}>
+                  {dominancePercent}% controlled
+                </Text>
+                <Text style={styles.playerStats}>
+                  {player.territories} territories
+                </Text>
+              </View>
+            );
+          })}
         </View>
       </LinearGradient>
     </SafeAreaView>
@@ -571,5 +739,31 @@ const styles = StyleSheet.create({
   playerStats: {
     fontSize: 10,
     color: '#b0bec5',
+  },
+  winnerCard: {
+    borderColor: '#ffd700',
+    borderWidth: 2,
+    backgroundColor: '#ffd70020',
+  },
+  currentPlayerCard: {
+    borderColor: '#64ffda',
+    borderWidth: 1,
+  },
+  winnerGlow: {
+    shadowColor: '#ffd700',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 4,
+    elevation: 8,
+  },
+  winnerText: {
+    color: '#ffd700',
+    fontWeight: 'bold',
+  },
+  elementIcon: {
+    fontSize: 8,
+    position: 'absolute',
+    top: 2,
+    right: 2,
   },
 });
