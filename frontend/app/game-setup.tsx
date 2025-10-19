@@ -14,10 +14,10 @@ export default function GameSetup() {
   const [playerCount, setPlayerCount] = useState(2);
 
   const elements = [
-    { id: 'fire', name: 'Fire', color: '#ff5722', emoji: '🔥', description: 'Aggressive and fast' },
-    { id: 'water', name: 'Water', color: '#2196f3', emoji: '💧', description: 'Fluid and adaptive' },
-    { id: 'earth', name: 'Earth', color: '#4caf50', emoji: '🌱', description: 'Strong and defensive' },
-    { id: 'wind', name: 'Wind', color: '#9c27b0', emoji: '💨', description: 'Swift and mobile' },
+    { id: 'fire', name: 'Fire', color: '#ff5722', emoji: '🔥', description: 'Spreads through conquered lines' },
+    { id: 'water', name: 'Water', color: '#2196f3', emoji: '💧', description: 'Fortifies captured territory' },
+    { id: 'earth', name: 'Earth', color: '#4caf50', emoji: '🌱', description: 'Regenerates lost ground' },
+    { id: 'wind', name: 'Wind', color: '#9c27b0', emoji: '💨', description: 'Moves armies farther' },
   ];
 
   const handleStartGame = () => {

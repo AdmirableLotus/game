@@ -142,6 +142,12 @@ export default function Game() {
   const isAdjacent = (cell1: Cell, cell2: Cell): boolean => {
     const dx = Math.abs(cell1.x - cell2.x);
     const dy = Math.abs(cell1.y - cell2.y);
+    
+    // Wind elemental ability: can move 2 spaces
+    if (cell1.element === 'wind') {
+      return (dx <= 2 && dy === 0) || (dx === 0 && dy <= 2) || (dx === 1 && dy === 1);
+    }
+    
     return (dx === 1 && dy === 0) || (dx === 0 && dy === 1);
   };
 
@@ -149,29 +155,51 @@ export default function Game() {
     const newGrid = [...grid];
     const fromGridCell = newGrid[fromCell.y][fromCell.x];
     const toGridCell = newGrid[toCell.y][toCell.x];
+    const playerElement = players[currentPlayer].element;
     
-    const attackingArmies = fromGridCell.armyCount! - 1;
+    let attackingArmies = fromGridCell.armyCount! - 1;
+    
+    // Wind elemental ability: +1 army strength in attacks
+    if (playerElement === 'wind') {
+      attackingArmies += 1;
+    }
     
     if (toCell.owner === undefined || toCell.owner === currentPlayer) {
       toGridCell.owner = currentPlayer;
       toGridCell.state = 'claimed';
-      toGridCell.element = players[currentPlayer].element;
+      toGridCell.element = playerElement;
       toGridCell.armyCount = (toGridCell.armyCount || 0) + attackingArmies;
       fromGridCell.armyCount = 1;
+      
+      // Fire elemental ability: spread to adjacent neutral territories
+      if (playerElement === 'fire') {
+        spreadFire(newGrid, toCell.x, toCell.y);
+      }
     } else {
-      const defendingArmies = toGridCell.armyCount || 1;
+      let defendingArmies = toGridCell.armyCount || 1;
+      
+      // Water elemental ability: +1 defense bonus
+      if (toGridCell.element === 'water') {
+        defendingArmies += 1;
+      }
+      
       if (attackingArmies > defendingArmies) {
         const newPlayers = [...players];
         newPlayers[toCell.owner].territories--;
         newPlayers[currentPlayer].territories++;
         
         toGridCell.owner = currentPlayer;
-        toGridCell.element = players[currentPlayer].element;
+        toGridCell.element = playerElement;
         toGridCell.armyCount = attackingArmies - defendingArmies;
         fromGridCell.armyCount = 1;
         
         setPlayers(newPlayers);
         animateCapture();
+        
+        // Fire elemental ability: spread after conquest
+        if (playerElement === 'fire') {
+          spreadFire(newGrid, toCell.x, toCell.y);
+        }
       } else {
         toGridCell.armyCount = defendingArmies - attackingArmies;
         fromGridCell.armyCount = 1;
@@ -181,6 +209,30 @@ export default function Game() {
     setGrid(newGrid);
     checkWinCondition();
     nextTurn();
+  };
+
+  const spreadFire = (grid: Cell[][], x: number, y: number) => {
+    const directions = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+    
+    directions.forEach(([dx, dy]) => {
+      const nx = x + dx;
+      const ny = y + dy;
+      
+      if (nx >= 0 && nx < gridSize && ny >= 0 && ny < gridSize) {
+        const cell = grid[ny][nx];
+        if (cell.state === 'empty') {
+          // Convert neutral territory to fire territory
+          cell.state = 'claimed';
+          cell.owner = currentPlayer;
+          cell.element = 'fire';
+          cell.armyCount = 1;
+          
+          const newPlayers = [...players];
+          newPlayers[currentPlayer].territories++;
+          setPlayers(newPlayers);
+        }
+      }
+    });
   };
 
   const animateCapture = () => {
@@ -321,19 +373,74 @@ export default function Game() {
     
     const newPlayers = [...players];
     const nextPlayer = (currentPlayer + 1) % players.length;
+    const nextPlayerElement = newPlayers[nextPlayer].element;
+    
+    // Base army generation
     newPlayers[nextPlayer].armies += Math.max(1, Math.floor(newPlayers[nextPlayer].territories / 3));
     
     const newGrid = [...grid];
+    
+    // Earth elemental ability: regenerate lost territories
+    if (nextPlayerElement === 'earth') {
+      regenerateEarth(newGrid, nextPlayer);
+    }
+    
+    // Add armies to territories
     for (let y = 0; y < gridSize; y++) {
       for (let x = 0; x < gridSize; x++) {
         if (newGrid[y][x].owner === nextPlayer && newGrid[y][x].state === 'claimed') {
-          newGrid[y][x].armyCount = (newGrid[y][x].armyCount || 0) + 1;
+          let armyBonus = 1;
+          
+          // Water elemental ability: extra fortification
+          if (nextPlayerElement === 'water') {
+            armyBonus = 2;
+          }
+          
+          newGrid[y][x].armyCount = (newGrid[y][x].armyCount || 0) + armyBonus;
         }
       }
     }
     
     setGrid(newGrid);
     setPlayers(newPlayers);
+  };
+
+  const regenerateEarth = (grid: Cell[][], playerId: number) => {
+    const earthTerritories = [];
+    
+    // Find all earth territories
+    for (let y = 0; y < gridSize; y++) {
+      for (let x = 0; x < gridSize; x++) {
+        if (grid[y][x].owner === playerId && grid[y][x].element === 'earth') {
+          earthTerritories.push({ x, y });
+        }
+      }
+    }
+    
+    // Try to regenerate one adjacent empty territory per earth territory
+    earthTerritories.forEach(({ x, y }) => {
+      const directions = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+      
+      for (const [dx, dy] of directions) {
+        const nx = x + dx;
+        const ny = y + dy;
+        
+        if (nx >= 0 && nx < gridSize && ny >= 0 && ny < gridSize) {
+          const cell = grid[ny][nx];
+          if (cell.state === 'empty' && Math.random() < 0.3) { // 30% chance
+            cell.state = 'claimed';
+            cell.owner = playerId;
+            cell.element = 'earth';
+            cell.armyCount = 1;
+            
+            const newPlayers = [...players];
+            newPlayers[playerId].territories++;
+            setPlayers(newPlayers);
+            break; // Only regenerate one per territory
+          }
+        }
+      }
+    });
   };
 
   const handleCellPress = (cell: Cell) => {
@@ -572,6 +679,12 @@ export default function Game() {
           {players.map((player) => {
             const isWinner = gameWinner === player.id;
             const dominancePercent = Math.floor((player.territories / (gridSize * gridSize)) * 100);
+            const abilityText = {
+              fire: '🔥 Spreads',
+              water: '🛡️ Fortifies', 
+              earth: '🌱 Regenerates',
+              wind: '🌪️ Extended Range'
+            };
             
             return (
               <View key={player.id} style={[
@@ -590,11 +703,11 @@ export default function Game() {
                 ]}>
                   {player.element} {isWinner ? '👑' : ''}
                 </Text>
-                <Text style={styles.playerStats}>
-                  {dominancePercent}% controlled
+                <Text style={styles.playerAbility}>
+                  {abilityText[player.element]}
                 </Text>
                 <Text style={styles.playerStats}>
-                  {player.territories} territories
+                  {dominancePercent}% controlled
                 </Text>
               </View>
             );
@@ -765,5 +878,11 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 2,
     right: 2,
+  },
+  playerAbility: {
+    fontSize: 9,
+    color: '#64ffda',
+    fontWeight: '500',
+    marginBottom: 2,
   },
 });
