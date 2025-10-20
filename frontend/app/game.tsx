@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, Dimensions, Animated } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
+import { playSound } from './sounds';
+import { AIPlayer } from './ai';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
@@ -9,7 +11,18 @@ type Element = 'fire' | 'water' | 'earth' | 'wind';
 type CellState = 'empty' | 'claimed' | 'army';
 type LineState = 'empty' | 'drawn' | 'selected';
 
-interface Cell {
+
+
+export interface Player {
+  id: number;
+  element: Element;
+  color: string;
+  isAI: boolean;
+  territories: number;
+  armies: number;
+}
+
+export interface Cell {
   id: string;
   x: number;
   y: number;
@@ -19,21 +32,12 @@ interface Cell {
   element?: Element;
 }
 
-interface Line {
+export interface Line {
   id: string;
   from: { x: number; y: number };
   to: { x: number; y: number };
   state: LineState;
   owner?: number;
-}
-
-interface Player {
-  id: number;
-  element: Element;
-  color: string;
-  isAI: boolean;
-  territories: number;
-  armies: number;
 }
 
 export default function Game() {
@@ -65,10 +69,18 @@ export default function Game() {
   const playerElements: Element[] = ['fire', 'water', 'earth', 'wind'];
   
   const [players, setPlayers] = useState<Player[]>([]);
+  const [aiPlayers, setAiPlayers] = useState<AIPlayer[]>([]);
 
   useEffect(() => {
     initializeGame();
   }, []);
+
+  useEffect(() => {
+    // Check if current player is AI and trigger their turn
+    if (players[currentPlayer]?.isAI && !gameWinner) {
+      setTimeout(() => executeAITurn(), 1500);
+    }
+  }, [currentPlayer, gamePhase]);
 
   const initializeGame = () => {
     const newPlayers: Player[] = [];
@@ -83,6 +95,12 @@ export default function Game() {
       });
     }
     setPlayers(newPlayers);
+
+    // Initialize AI players
+    const ais = newPlayers
+      .filter(p => p.isAI)
+      .map(p => new AIPlayer(p.id, p.element, 'medium'));
+    setAiPlayers(ais);
 
     const newGrid: Cell[][] = [];
     for (let y = 0; y < gridSize; y++) {
@@ -195,6 +213,7 @@ export default function Game() {
         
         setPlayers(newPlayers);
         animateCapture();
+        playSound('capture');
         
         // Fire elemental ability: spread after conquest
         if (playerElement === 'fire') {
@@ -257,6 +276,7 @@ export default function Game() {
     for (const player of players) {
       if (player.territories >= winThreshold) {
         setGameWinner(player.id);
+        playSound('win');
         setTimeout(() => {
           router.push({
             pathname: '/victory',
@@ -335,6 +355,7 @@ export default function Game() {
       setPlayers(newPlayers);
       
       animateCapture();
+      playSound('capture');
       checkWinCondition();
     }
   };
@@ -369,6 +390,7 @@ export default function Game() {
       }),
     ]).start();
     
+    playSound('turn');
     setCurrentPlayer((prev) => (prev + 1) % players.length);
     
     const newPlayers = [...players];
@@ -403,6 +425,33 @@ export default function Game() {
     
     setGrid(newGrid);
     setPlayers(newPlayers);
+    
+    // Trigger AI move if next player is AI
+    const nextPlayerData = newPlayers[(currentPlayer + 1) % players.length];
+    if (nextPlayerData?.isAI) {
+      setTimeout(() => executeAITurn(), 1000);
+    }
+  };
+
+  const executeAITurn = () => {
+    const aiPlayer = aiPlayers.find(ai => ai['playerId'] === currentPlayer);
+    if (!aiPlayer) return;
+
+    if (gamePhase === 'drawing') {
+      const move = aiPlayer.findBestLine(horizontalLines, verticalLines, grid);
+      if (move) {
+        handleLinePress(`${move.isHorizontal ? 'h' : 'v'}-${move.x}-${move.y}`, move.isHorizontal, move.x, move.y);
+      }
+    } else {
+      const move = aiPlayer.findBestArmyMove(grid);
+      if (move) {
+        executeArmyMove(move.from, move.to);
+        setSelectedCell(null);
+      } else {
+        // No valid moves, skip turn
+        nextTurn();
+      }
+    }
   };
 
   const regenerateEarth = (grid: Cell[][], playerId: number) => {

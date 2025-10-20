@@ -62,6 +62,7 @@ export default function Home() {
 
             <TouchableOpacity 
               style={[styles.menuButton, styles.secondaryButton]}
+              onPress={() => router.push('/how-to-play')}
               activeOpacity={0.8}
             >
               <Text style={styles.buttonTextSecondary}>HOW TO PLAY</Text>
