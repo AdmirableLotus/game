@@ -54,6 +54,14 @@ export default function Home() {
 
             <TouchableOpacity 
               style={[styles.menuButton, styles.secondaryButton]}
+              onPress={() => router.push('/zelda-game')}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.buttonTextSecondary}>🏰 ZELDA MODE</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={[styles.menuButton, styles.secondaryButton]}
               onPress={handleJoinGame}
               activeOpacity={0.8}
             >
