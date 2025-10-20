@@ -4,8 +4,8 @@ import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 
 export default function Home() {
-  const handleNewGame = () => {
-    router.push('/game-setup');
+  const handleStartAdventure = () => {
+    router.push('/game?element=fire&mode=local&mapSize=medium&playerCount=2');
   };
 
   const handleJoinGame = () => {
@@ -21,9 +21,9 @@ export default function Home() {
         <View style={styles.content}>
           {/* Game Title */}
           <View style={styles.titleContainer}>
-            <Text style={styles.title}>ELEMENTAL</Text>
-            <Text style={styles.subtitle}>CONQUEST</Text>
-            <Text style={styles.tagline}>Territory Wars</Text>
+            <Text style={styles.title}>🔮 ELEMENTAL</Text>
+            <Text style={styles.subtitle}>ODYSSEY</Text>
+            <Text style={styles.tagline}>A Pixel Adventure</Text>
           </View>
 
           {/* Elemental Theme Icons */}
@@ -42,39 +42,19 @@ export default function Home() {
             </View>
           </View>
 
-          {/* Menu Buttons */}
-          <View style={styles.menuContainer}>
+          {/* Start Button */}
+          <View style={styles.startContainer}>
             <TouchableOpacity 
-              style={[styles.menuButton, styles.primaryButton]}
-              onPress={handleNewGame}
+              style={styles.startButton}
+              onPress={handleStartAdventure}
               activeOpacity={0.8}
             >
-              <Text style={styles.buttonText}>NEW GAME</Text>
+              <Text style={styles.startText}>⚔️ BEGIN ADVENTURE</Text>
             </TouchableOpacity>
-
-            <TouchableOpacity 
-              style={[styles.menuButton, styles.secondaryButton]}
-              onPress={() => router.push('/zelda-game')}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.buttonTextSecondary}>🏰 ZELDA MODE</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity 
-              style={[styles.menuButton, styles.secondaryButton]}
-              onPress={handleJoinGame}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.buttonTextSecondary}>JOIN GAME</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity 
-              style={[styles.menuButton, styles.secondaryButton]}
-              onPress={() => router.push('/how-to-play')}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.buttonTextSecondary}>HOW TO PLAY</Text>
-            </TouchableOpacity>
+            
+            <Text style={styles.flavorText}>
+              "Master the elements. Claim the realm."
+            </Text>
           </View>
         </View>
       </LinearGradient>
@@ -151,36 +131,34 @@ const styles = StyleSheet.create({
   elementText: {
     fontSize: 24,
   },
-  menuContainer: {
-    width: '100%',
-    paddingHorizontal: 40,
-    gap: 16,
-  },
-  menuButton: {
-    height: 56,
-    borderRadius: 28,
+  startContainer: {
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 32,
+    width: '100%',
   },
-  primaryButton: {
-    backgroundColor: '#64ffda',
+  startButton: {
+    backgroundColor: '#4a4a8a',
+    paddingVertical: 16,
+    paddingHorizontal: 40,
+    borderRadius: 25,
+    borderWidth: 3,
+    borderColor: '#ffff00',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4.65,
+    elevation: 8,
   },
-  secondaryButton: {
-    backgroundColor: 'transparent',
-    borderWidth: 2,
-    borderColor: '#64ffda',
-  },
-  buttonText: {
-    fontSize: 18,
+  startText: {
+    fontSize: 20,
     fontWeight: 'bold',
-    color: '#1a1a2e',
-    letterSpacing: 1,
+    color: '#ffffff',
+    letterSpacing: 2,
   },
-  buttonTextSecondary: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#64ffda',
-    letterSpacing: 1,
+  flavorText: {
+    fontSize: 14,
+    color: '#ffff00',
+    textAlign: 'center',
+    marginTop: 20,
+    fontStyle: 'italic',
   },
 });
