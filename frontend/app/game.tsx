@@ -434,7 +434,7 @@ export default function Game() {
   };
 
   const executeAITurn = () => {
-    const aiPlayer = aiPlayers.find(ai => ai['playerId'] === currentPlayer);
+    const aiPlayer = aiPlayers.find(ai => ai.playerId === currentPlayer);
     if (!aiPlayer) return;
 
     if (gamePhase === 'drawing') {
